@@ -11,6 +11,7 @@ android {
     namespace = "io.github.romanvht.byedpi"
     //noinspection GradleDependency
     compileSdk = 36
+    ndkVersion = "27.2.12479018"
 
     defaultConfig {
         applicationId = "io.github.romanvht.byedpi"

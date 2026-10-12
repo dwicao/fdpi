@@ -20,23 +20,16 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install NDK, CMake, platform
+      # ubuntu-latest ships the Android SDK + sdkmanager at ANDROID_HOME.
+      - name: Install NDK and CMake
         run: |
-          sdkmanager --install \
-            "ndk;27.2.12479018" \
-            "cmake;3.22.1" \
-            "platforms;android-36" \
-            "build-tools;36.0.0"
           yes | sdkmanager --licenses >/dev/null || true
-
-      - name: Grant execute permission for gradlew
-        run: chmod +x gradlew
+          sdkmanager --install "ndk;27.2.12479018" "cmake;3.22.1"
 
       - name: Build debug APK
-        run: ./gradlew assembleDebug --no-daemon --stacktrace
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
