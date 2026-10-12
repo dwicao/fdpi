@@ -227,6 +227,21 @@
     <string name="diagnostic_test_settings">Настройки подбора</string>
     <string name="diagnostic_enabled">вкл</string>
     <string name="diagnostic_disabled">выкл</string>
+
+    <!-- In-app diagnostic test suite (Pass 1: TLS fingerprint matrix). -->
+    <string name="diagnostic_title">Диагностика сети</string>
+    <string name="diagnostic_running">Выполняется сетевая диагностика…</string>
+    <string name="diagnostic_progress">Тест %1$d из %2$d</string>
+    <string name="diagnostic_failed">Диагностика завершилась с ошибками</string>
+    <string name="diagnostic_complete">Диагностика завершена</string>
+    <string name="diagnostic_no_results">Нет результатов</string>
+    <string name="diagnostic_url_hint">URL для скачивания</string>
+    <string name="diagnostic_timeout_hint">Таймаут, с</string>
+    <string name="diagnostic_abort_hint">Порог, КБ/с</string>
+    <string name="diagnostic_test1">Тест 1: матрица TLS-отпечатков</string>
+    <string name="diagnostic_export">Экспорт</string>
+    <string name="diagnostic_disclaimer">Отпечаток = стек TLS (Cronet=BoringSSL, OkHttp=Conscrypt). Протокол (h2/h3) указывается в таблице: если h3 быстрее h2 — дело в протоколе, а не в отпечатке.</string>
+    <string name="export_success">Файл сохранён</string>
     <string name="diagnostic_yes">да</string>
     <string name="diagnostic_no">нет</string>
     <string name="diagnostic_available">есть</string>

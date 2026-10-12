@@ -90,6 +90,12 @@ dependencies {
     implementation("androidx.preference:preference-ktx:1.2.1")
     implementation("com.google.android.material:material:1.13.0")
     implementation("com.google.code.gson:gson:2.14.0")
+    // Diagnostic: Cronet gives the BoringSSL/Maps fingerprint; OkHttp gives a
+    // Conscrypt fingerprint and can route via SOCKS. Both are TCP-only in our
+    // config (QUIC is disabled/verified at runtime) so tests isolate TLS
+    // fingerprint rather than protocol.
+    implementation("org.chromium.net:cronet-embedded:119.6045.31")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.3.0")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.7.0")

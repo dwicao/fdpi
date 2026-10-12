@@ -227,6 +227,21 @@
     <string name="diagnostic_test_settings">Strategy test settings</string>
     <string name="diagnostic_enabled">enabled</string>
     <string name="diagnostic_disabled">disabled</string>
+
+    <!-- In-app diagnostic test suite (Pass 1: TLS fingerprint matrix). -->
+    <string name="diagnostic_title">Network diagnostic</string>
+    <string name="diagnostic_running">Running network diagnostic…</string>
+    <string name="diagnostic_progress">Test %1$d of %2$d</string>
+    <string name="diagnostic_failed">Diagnostic finished with errors</string>
+    <string name="diagnostic_complete">Diagnostic complete</string>
+    <string name="diagnostic_no_results">No results</string>
+    <string name="diagnostic_url_hint">Download URL</string>
+    <string name="diagnostic_timeout_hint">Timeout, s</string>
+    <string name="diagnostic_abort_hint">Floor, KB/s</string>
+    <string name="diagnostic_test1">Test 1: TLS fingerprint matrix</string>
+    <string name="diagnostic_export">Export</string>
+    <string name="diagnostic_disclaimer">Fingerprint = TLS stack (Cronet=BoringSSL, OkHttp=Conscrypt). The table reports the negotiated protocol (h2/h3): if h3 is faster than h2 the cause is protocol, not fingerprint.</string>
+    <string name="export_success">File saved</string>
     <string name="diagnostic_yes">yes</string>
     <string name="diagnostic_no">no</string>
     <string name="diagnostic_available">granted</string>

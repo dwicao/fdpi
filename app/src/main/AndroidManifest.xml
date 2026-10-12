@@ -75,6 +75,17 @@
             android:label="@string/title_settings"
             android:exported="false"/>
 
+        <activity
+            android:name=".activities.DiagnosticActivity"
+            android:configChanges="orientation|screenSize|keyboardHidden"
+            android:label="@string/diagnostic_title"
+            android:exported="false"/>
+
+        <service
+            android:name=".services.DiagnosticService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
         <service android:name=".services.ByeDpiVpnService"
             android:process=":native"
             android:permission="android.permission.BIND_VPN_SERVICE"

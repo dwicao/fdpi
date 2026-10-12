@@ -280,6 +280,11 @@ class MainActivity : BaseActivity() {
                 true
             }
 
+            R.id.action_diagnostic_test -> {
+                startActivity(Intent(this, DiagnosticActivity::class.java))
+                true
+            }
+
             R.id.action_save_logs -> {
                 val intent = Intent(this, FileActivity::class.java)
                 intent.putExtra(FileActivity.EXTRA_MODE, FileActivity.MODE_CREATE)

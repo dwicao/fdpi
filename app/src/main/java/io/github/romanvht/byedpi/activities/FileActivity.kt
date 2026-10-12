@@ -36,6 +36,7 @@ class FileActivity : BaseActivity() {
         const val MODE_CREATE = "create"
         const val TYPE_SETTINGS = "settings"
         const val TYPE_LOGS = "logs"
+        const val TYPE_DIAGNOSTIC = "diagnostic"
 
         private const val STATE_CURRENT_DIRECTORY = "current_directory"
         private const val STATE_EXTERNAL_REQUEST = "external_request_active"
@@ -55,7 +56,11 @@ class FileActivity : BaseActivity() {
     private val extension get() = if (type == TYPE_LOGS) "log" else "json"
     private val defaultFileName by lazy {
         val format = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault())
-        val prefix = if (type == TYPE_LOGS) "byedpi" else "bbd"
+        val prefix = when (type) {
+            TYPE_LOGS -> "byedpi"
+            TYPE_DIAGNOSTIC -> "diag"
+            else -> "bbd"
+        }
         "${prefix}_${format.format(System.currentTimeMillis())}.$extension"
     }
     private val roots by lazy { StorageUtils.getRoots(this) }
