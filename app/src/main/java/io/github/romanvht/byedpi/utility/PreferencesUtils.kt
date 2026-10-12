@@ -42,6 +42,10 @@ fun SharedPreferences.getCmdArgs(): String {
     return getStringNotNull("byedpi_cmd_args", DEFAULT_CMD_ARGS)
 }
 
+fun SharedPreferences.getMapsMasquerade(): Boolean {
+    return getBoolean("byedpi_maps_masquerade", false)
+}
+
 fun SharedPreferences.checkIpAndPortInCmd(): Pair<String?, String?> {
     if (!getCmdEnable()) return Pair(null, null)
     return shellSplit(getCmdArgs()).checkIpAndPortInArgs()
@@ -50,7 +54,7 @@ fun SharedPreferences.checkIpAndPortInCmd(): Pair<String?, String?> {
 fun List<String>.checkIpAndPortInArgs(): Pair<String?, String?> {
     val flags = setOf(
         "--daemon", "--no-domain", "--no-ipv6", "--no-udp", "--help", "--version",
-        "--transparent", "--tfo", "--md5sig", "--wait-send", "--drop-sack",
+        "--transparent", "--tfo", "--md5sig", "--wait-send", "--drop-sack", "--maps",
     )
     var host: String? = null
     var port: String? = null
@@ -69,7 +73,7 @@ fun List<String>.checkIpAndPortInArgs(): Pair<String?, String?> {
         } else if (arg.startsWith("-")) {
             for (position in 1 until arg.length) {
                 val key = arg[position]
-                if (key in "DNXUhvEFSZY") continue
+                if (key in "DNXUhvEFSZYk") continue
                 val value = arg.substring(position + 1).ifEmpty { getOrNull(index++) }
                 when (key) {
                     'i' -> host = value

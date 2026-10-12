@@ -46,10 +46,13 @@ internal class NativeEngine(
         fun configuration(context: Context): Configuration {
             val preferences = context.getPreferences()
             val proxy = ByeDpiProxyPreferences.fromSharedPreferences(preferences, context)
-            val args = when (proxy) {
+            val baseArgs = when (proxy) {
                 is ByeDpiProxyCmdPreferences -> proxy.args
                 is ByeDpiProxyUIPreferences -> proxy.uiargs
             }
+            val args = if (preferences.getMapsMasquerade() && "--maps" !in baseArgs) {
+                (baseArgs.toList() + "--maps").toTypedArray()
+            } else baseArgs
             val (defaultHost, defaultPort) = preferences.getProxyIpAndPort()
             val (host, port) = args.toList().checkIpAndPortInArgs()
             return Configuration(

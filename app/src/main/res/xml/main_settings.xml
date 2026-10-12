@@ -100,6 +100,13 @@
             android:title="@string/use_command_line_settings"
             android:defaultValue="true" />
 
+        <SwitchPreference
+            android:key="byedpi_maps_masquerade"
+            android:icon="@drawable/ic_network"
+            android:title="@string/maps_masquerade"
+            android:summary="@string/maps_masquerade_summary"
+            android:defaultValue="false" />
+
         <Preference
             android:key="byedpi_ui_settings"
             android:icon="@drawable/ic_tune"

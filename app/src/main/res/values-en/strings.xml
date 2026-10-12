@@ -70,6 +70,8 @@
     <string name="command_line_editor">Command line editor</string>
     <string name="ui_editor">UI editor</string>
     <string name="use_command_line_settings">Use command line settings</string>
+    <string name="maps_masquerade">Masquerade as Google Maps</string>
+    <string name="maps_masquerade_summary">Cronet-like TLS fingerprint and Google Maps SNI in fake packets</string>
     <string name="desync_http">HTTP desync</string>
     <string name="desync_https">HTTPS desync</string>
     <string name="desync_udp">UDP desync</string>

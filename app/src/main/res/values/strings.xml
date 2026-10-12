@@ -70,6 +70,8 @@
     <string name="command_line_editor">Редактор командной строки</string>
     <string name="ui_editor">Стандартный редактор</string>
     <string name="use_command_line_settings">Использовать командную строку</string>
+    <string name="maps_masquerade">Маскировка под Google Maps</string>
+    <string name="maps_masquerade_summary">Отпечаток TLS под Cronet и SNI Google Maps в поддельных пакетах</string>
     <string name="desync_http">Десинхронизация HTTP</string>
     <string name="desync_https">Десинхронизация HTTPS</string>
     <string name="desync_udp">Десинхронизация UDP</string>

@@ -20,3 +20,5 @@ local.properties
 
 # JNI
 app/src/main/jniLibs/
+# Local native test artifacts
+build-native/
