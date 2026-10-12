@@ -41,19 +41,21 @@ interface DiagnosticTest {
 }
 
 /**
- * Pass 1 — the fingerprint matrix. Five rows, each isolating one variable:
+ * Pass 1 — the fingerprint matrix. Four rows, each isolating one variable:
  *
- *  1. Cronet / direct / QUIC hinted  → Maps-like reference (BoringSSL + QUIC)
- *  2. Cronet / direct / QUIC off     → same fingerprint, TCP only
+ *  1. Cronet / direct / QUIC enabled → Maps-like reference (BoringSSL + h3)
+ *  2. Cronet / direct / QUIC disabled → same fingerprint, forced TCP (h2)
  *  3. OkHttp / direct / h2           → different fingerprint, same TCP+h2
  *  4. OkHttp / direct / h1.1         → protocol lever (OkHttp never does QUIC)
- *  5. OkHttp / via engine / h2       → does the byedpi bypass help at all
  *
- * Reading the result: (1 fast, 2/3 slow) ⇒ protocol is the cause. (5 fast,
- * 3 slow) ⇒ bypass helps. (3 slow, 2 fast) ⇒ fingerprint matters.
+ * Reading the result: (1 fast, 2/3 slow) ⇒ protocol is the cause. (3 slow,
+ * 2 fast) ⇒ fingerprint matters. Row 5 (OkHttp via engine) is parked until
+ * Cronet is verified working and the engine is running.
  *
- * The negotiated protocol is always read back from the stack, so a row is
- * attributed to what actually happened rather than what we hoped would.
+ * Each Cronet row performs a warmup request first because Cronet discovers
+ * QUIC via Alt-Svc — without it the first request is always TCP and the QUIC
+ * hypothesis cannot be tested. The negotiated protocol is read back from the
+ * stack, so a row is attributed to what actually happened.
  */
 class FingerprintMatrixTest : DiagnosticTest {
     override val id = 1
@@ -69,11 +71,10 @@ class FingerprintMatrixTest : DiagnosticTest {
     )
 
     private val specs = listOf(
-        RowSpec(DiagnosticStack.CRONET, DiagnosticRoute.DIRECT, http2 = true, quicHint = true, "cronet/quic"),
-        RowSpec(DiagnosticStack.CRONET, DiagnosticRoute.DIRECT, http2 = true, quicHint = false, "cronet/tcp"),
+        RowSpec(DiagnosticStack.CRONET, DiagnosticRoute.DIRECT, http2 = true, quicHint = true, "cronet/h3"),
+        RowSpec(DiagnosticStack.CRONET, DiagnosticRoute.DIRECT, http2 = true, quicHint = false, "cronet/h2"),
         RowSpec(DiagnosticStack.OKHTTP, DiagnosticRoute.DIRECT, http2 = true, quicHint = false, "okhttp/h2"),
         RowSpec(DiagnosticStack.OKHTTP, DiagnosticRoute.DIRECT, http2 = false, quicHint = false, "okhttp/h1.1"),
-        RowSpec(DiagnosticStack.OKHTTP, DiagnosticRoute.VIA_ENGINE, http2 = true, quicHint = false, "okhttp/h2 via engine"),
     )
 
     override suspend fun run(
@@ -168,10 +169,17 @@ class FingerprintMatrixTest : DiagnosticTest {
 
         var error: String? = null
         var protocol = "unknown"
+        var warmup: String? = null
         try {
             val outcome = fetch.await()
             protocol = normalize(outcome.protocol)
             error = outcome.error
+            warmup = outcome.warmupProtocol
+            // FIX 3/4: surface the warmup so we can see QUIC discovery work —
+            // warmup=h2 then measured=h3 means Alt-Svc discovery succeeded.
+            if (warmup != null) {
+                emit(prefix + "warmup=${normalize(warmup)} -> measured=$protocol")
+            }
         } catch (e: CancellationException) {
             // Aborted by the watchdog or by the user; still report what we saw.
             error = if (throttled.get()) null else (e.message ?: "cancelled")
