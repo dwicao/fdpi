@@ -182,8 +182,10 @@ class DiagnosticActivity : BaseActivity() {
         if (state.rows.isNotEmpty()) {
             sb.appendLine("--- results ---")
             state.rows.forEach { r ->
+                val warm = r.warmupProtocol?.let { "warmup=$it -> " } ?: ""
                 sb.appendLine(
-                    "${r.stack.label}/${r.route.label} proto=${r.protocol} " +
+                    "${r.stack.label}/${r.route.label} ${warm}proto=${r.protocol} " +
+                        "${r.urlCount} URLs " +
                         "avg=${SpeedAccumulator.human(r.avgBps)} " +
                         "peak=${SpeedAccumulator.human(r.peakBps)} " +
                         "bytes=${SpeedAccumulator.humanBytes(r.bytes)} " +
@@ -243,6 +245,8 @@ class DiagnosticActivity : BaseActivity() {
             sb.append("\"first3sBps\":${r.first3sBps},")
             sb.append("\"last3sBps\":${r.last3sBps},")
             sb.append("\"burstRatio\":${"%.3f".format(r.burstRatio)},")
+            sb.append("\"urlCount\":${r.urlCount},")
+            sb.append("\"warmupProtocol\":\"${r.warmupProtocol ?: ""}\",")
             sb.append("\"verdict\":\"${r.verdict.name}\"")
             sb.append("}")
         }

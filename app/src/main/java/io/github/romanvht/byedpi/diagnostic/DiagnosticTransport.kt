@@ -51,36 +51,47 @@ class DiagnosticTransport(context: Context) {
          * request can actually reach h3; logging both proves discovery worked.
          */
         val warmupProtocol: String? = null,
+        /**
+         * How many URLs of the sequence were actually fetched. Used by the
+         * multi-URL rows so the result shows "N URLs" even when max_time or
+         * max_bytes stopped the run early.
+         */
+        val urlCount: Int = 0,
     )
 
     /**
-     * Cronet fetch.
+     * Cronet fetch of a LIST of URLs, sequentially, on ONE engine.
      *
-     * [quicHint] controls QUIC at the engine level: when false we call
-     * `enableQuic(false)` so the request is forced onto TCP (HTTP/2) — that is
-     * our "QUIC-off" variant. When true we enable QUIC and add a hint for the
-     * host so Cronet may attempt HTTP/3. Whichever protocol actually lands is
-     * reported in [FetchOutcome.protocol], so the row is never mislabelled.
+     * Reusing a single engine across the whole sequence is essential: it keeps
+     * the HTTP/3 connection and the Alt-Svc cache alive, so URL #2..#N can stay
+     * on QUIC. Building an engine per URL would reset discovery and force every
+     * request back to TCP.
      *
-     * The engine is shut down before returning — engines are expensive and each
-     * row needs a clean state (no cached Alt-Svc leaking between rows).
+     * [quicHint] controls QUIC at the engine level: false → `enableQuic(false)`
+     * (forced HTTP/2), true → QUIC enabled + host hint so Cronet may attempt
+     * HTTP/3. A single warmup request populates Alt-Svc before measuring.
+     *
+     * Stops when: all URLs done, cumulative bytes reach [maxBytes], or
+     * [isCancelled]. Each stop (except cancel) returns a normal outcome with
+     * [FetchOutcome.urlCount] reflecting how far it got.
      */
-    suspend fun fetchCronet(
-        url: String,
+    suspend fun fetchCronetSequence(
+        urls: List<String>,
         headers: Map<String, String>,
         quicHint: Boolean,
         onBytes: (Int) -> Unit,
         isCancelled: () -> Boolean,
+        maxBytes: Long,
     ): FetchOutcome {
-        // FIX 2: build errors used to surface as an opaque "Exception posting
-        // task to executor" with no stack trace. Log the real cause so a build
-        // failure is distinguishable from a callback-dispatch failure.
+        if (urls.isEmpty()) return FetchOutcome(error = "no urls")
+        // FIX 2: log the real stack trace so build failures are distinguishable
+        // from callback-dispatch failures.
         val engine = try {
             CronetEngine.Builder(appContext).apply {
                 enableQuic(quicHint)
                 enableHttp2(true)
                 if (quicHint) {
-                    val host = hostOf(url)
+                    val host = hostOf(urls.first())
                     if (host != null) addQuicHint(host, 443, 443)
                 }
             }.build()
@@ -91,45 +102,63 @@ class DiagnosticTransport(context: Context) {
             )
         }
 
-        // FIX 1: Cronet requires a dedicated executor that outlives the request
-        // and runs callbacks off Cronet's internal network thread. The previous
-        // direct executor (Executor { it.run() }) violated that and produced
-        // "Exception posting task to executor". Fresh single-thread executor per
-        // call; shut down AFTER the engine (engine first so Cronet stops
-        // posting before the executor goes away). shutdown() lets already
-        // queued callbacks drain, so a racing onCanceled still runs.
+        // FIX 1: dedicated single-thread executor per run, shut down AFTER the
+        // engine so queued callbacks drain first.
         val executor = Executors.newSingleThreadExecutor { r ->
             Thread(r, "cronet-callback").apply { isDaemon = true }
         }
 
         var warmupProto: String? = null
+        var lastProtocol = "unknown"
+        var urlCount = 0
+        var grandTotal = 0L
+        var firstError: String? = null
         try {
-            // FIX 3: QUIC warmup. Cronet discovers QUIC via Alt-Svc, so the
-            // FIRST request to a host is TCP; only later ones can be h3.
-            // A small discarded request populates that cache. Bounded by its
-            // own deadline so a large custom URL cannot eat the row budget.
-            val warmUrl = warmupUrlOf(url)
+            // FIX 3 (v3): one warmup against the first URL's host, shrunk by
+            // warmupUrlOf so it is tiny (tile / 64px thumbnail). Headers arrive
+            // before the body, so Alt-Svc is cached even if we cut it short.
             val warm = withDeadline(8_000L) {
-                runCronetRequest(engine, executor, warmUrl, emptyMap(), { }, it)
+                runCronetRequest(engine, executor, warmupUrlOf(urls.first()), emptyMap(), { }, it)
             }
             warmupProto = warm.protocol
-            Log.i(TAG, "cronet warmup $warmUrl -> ${warm.protocol} err=${warm.error}")
+            Log.i(TAG, "cronet warmup ${warmupUrlOf(urls.first())} -> ${warm.protocol} err=${warm.error}")
 
-            if (isCancelled()) {
-                return FetchOutcome(error = "cancelled", warmupProtocol = warmupProto)
+            for (u in urls) {
+                if (isCancelled()) break
+                if (grandTotal >= maxBytes) {
+                    Log.i(TAG, "cronet max_bytes reached ($grandTotal >= $maxBytes), stopping")
+                    break
+                }
+                // Per-request cancel also fires when the byte budget is hit
+                // mid-download, so one oversized URL can't blow past maxBytes.
+                val req = runCronetRequest(
+                    engine, executor, u, headers,
+                    { n -> grandTotal += n; onBytes(n) },
+                    { isCancelled() || grandTotal >= maxBytes },
+                )
+                if (req.protocol != "unknown") lastProtocol = req.protocol
+                // A URL counts as fetched if it completed or delivered bytes.
+                if (req.error == null || req.bytes > 0) urlCount++
+                if (req.error != null && req.error != "cancelled" && firstError == null) {
+                    firstError = req.error
+                }
+                Log.i(TAG, "cronet[$urlCount] ${req.protocol} err=${req.error} $u")
             }
 
-            val measured = runCronetRequest(engine, executor, url, headers, onBytes, isCancelled)
-            return measured.copy(warmupProtocol = warmupProto)
+            // Only fail the row if NOTHING was fetched; partial success (some
+            // 404s among good tiles) still yields a usable measurement.
+            val error = if (urlCount == 0) (firstError ?: "no urls fetched") else null
+            return FetchOutcome(lastProtocol, grandTotal, error, warmupProto, urlCount)
         } catch (e: CancellationException) {
-            // Cancellation must propagate — swallowing it here would turn a
-            // user stop/timeout into a normal outcome and break the watchdog.
             throw e
         } catch (e: Exception) {
-            Log.e(TAG, "cronet request failed (quicHint=$quicHint, url=$url)", e)
+            Log.e(TAG, "cronet sequence failed (quicHint=$quicHint)", e)
             return FetchOutcome(
+                protocol = lastProtocol,
+                bytes = grandTotal,
                 error = e.message ?: e.javaClass.simpleName,
                 warmupProtocol = warmupProto,
+                urlCount = urlCount,
             )
         } finally {
             engine.shutdown()
@@ -223,12 +252,16 @@ class DiagnosticTransport(context: Context) {
     }
 
     /**
-     * Warmup URL: shrink any `bytes=` payload so the discarded request stays
-     * tiny (default target becomes 1 KiB instead of 1 MiB). URLs without that
-     * parameter fall through unchanged and are bounded by [withDeadline].
+     * Warmup URL: shrink the payload so the discarded request stays tiny.
+     *  - cloudflare `bytes=` → 1024 (default target 1 MiB → 1 KiB)
+     *  - lh3 size suffix `=WxH` → `=w64-h64` thumbnail (~3 KB instead of
+     *    ~425 KB); Google lh3 honours arbitrary sizes and still returns 200.
+     *  - tile URLs have neither and pass through unchanged (tiles are small).
      */
-    private fun warmupUrlOf(url: String): String =
-        if (url.contains("bytes=")) url.replace(Regex("bytes=\\d+"), "bytes=1024") else url
+    private fun warmupUrlOf(url: String): String {
+        if (url.contains("bytes=")) return url.replace(Regex("bytes=\\d+"), "bytes=1024")
+        return url.replace(Regex("=w\\d+-h\\d+"), "=w64-h64")
+    }
 
     /**
      * Runs [block] but forces it to give up after [deadlineMs] by flipping the
@@ -281,6 +314,9 @@ class DiagnosticTransport(context: Context) {
             val request = Request.Builder().url(url).apply {
                 headers.forEach { (k, v) -> addHeader(k, v) }
             }.build()
+            // FIX 3: OkHttp canonicalizes through HttpUrl. Log the exact URL it
+            // will request so a 404 can be traced to input-vs-request mutation.
+            Log.i(TAG, "okhttp requesting: ${request.url} (input: $url)")
 
             return client.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {

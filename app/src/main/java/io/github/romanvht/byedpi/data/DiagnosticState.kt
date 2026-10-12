@@ -71,6 +71,13 @@ data class DiagnosticRow(
     val last3sBps: Long = 0,
     val verdict: DiagnosticVerdict = DiagnosticVerdict.FAILED,
     val error: String? = null,
+    /** How many URLs in this row's list were actually fetched before the stop. */
+    val urlCount: Int = 0,
+    /**
+     * Protocol of the discarded QUIC warmup request, folded into the result
+     * line as "warmup=X -> measured=Y" so Alt-Svc discovery is visible.
+     */
+    val warmupProtocol: String? = null,
 ) {
     /** < 0.3 means the tail collapsed relative to the head → BURST. */
     val burstRatio: Float
@@ -80,15 +87,19 @@ data class DiagnosticRow(
 /**
  * Inputs for a run, all editable from the UI.
  *
- * @param abortBps early-abort floor in bytes/sec: below this after
- *   [abortAfterMs] the row is cut short and marked THROTTLED (30 KB/s default).
- * @param timeoutMs hard ceiling per row (25s default).
+ * @param abortBps early-abort floor in bytes/sec used by [SpeedAccumulator]
+ *   only to classify a finished row as THROTTLED — no longer cuts a row short,
+ *   because the sustained measurement needs the full window.
+ * @param timeoutMs hard ceiling per row (max_time; 20s per v3 spec).
+ * @param maxBytes cumulative byte ceiling per row (max_bytes; 10MB per v3
+ *   spec). Checked between URLs in the sequence.
  */
 data class DiagnosticConfig(
     val url: String = DEFAULT_URL,
-    val timeoutMs: Long = 25_000L,
+    val timeoutMs: Long = 20_000L,
     val abortBps: Long = 30L * 1024,
     val abortAfterMs: Long = 10_000L,
+    val maxBytes: Long = 10L * 1024 * 1024,
     /** Pass 1 only runs the fingerprint matrix; extended later. */
     val tests: Set<Int> = setOf(1),
 ) {
