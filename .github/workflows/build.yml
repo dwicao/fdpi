@@ -20,11 +20,13 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # ubuntu-latest ships the Android SDK + sdkmanager at ANDROID_HOME.
+      # ubuntu-latest ships the Android SDK at ANDROID_HOME but does not
+      # put cmdline-tools on PATH. Use the absolute sdkmanager path.
       - name: Install NDK and CMake
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install "ndk;27.2.12479018" "cmake;3.22.1"
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install "ndk;27.2.12479018" "cmake;3.22.1"
 
       - name: Build debug APK
         run: |
