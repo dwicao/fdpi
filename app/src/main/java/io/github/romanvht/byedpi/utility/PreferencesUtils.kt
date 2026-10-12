@@ -42,8 +42,14 @@ fun SharedPreferences.getCmdArgs(): String {
     return getStringNotNull("byedpi_cmd_args", DEFAULT_CMD_ARGS)
 }
 
+private const val MAPS_MASQUERADE_KEY = "byedpi_maps_masquerade"
+
 fun SharedPreferences.getMapsMasquerade(): Boolean {
-    return getBoolean("byedpi_maps_masquerade", false)
+    return getBoolean(MAPS_MASQUERADE_KEY, false)
+}
+
+fun SharedPreferences.setMapsMasquerade(enabled: Boolean) {
+    edit().putBoolean(MAPS_MASQUERADE_KEY, enabled).apply()
 }
 
 fun SharedPreferences.checkIpAndPortInCmd(): Pair<String?, String?> {

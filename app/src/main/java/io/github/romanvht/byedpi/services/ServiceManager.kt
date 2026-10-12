@@ -10,7 +10,12 @@ import android.util.Log
 import io.github.romanvht.byedpi.R
 import io.github.romanvht.byedpi.data.*
 import io.github.romanvht.byedpi.utility.createPauseNotification
+import io.github.romanvht.byedpi.utility.getMapsMasquerade
+import io.github.romanvht.byedpi.utility.getPreferences
+import io.github.romanvht.byedpi.utility.getProxyIpAndPort
 import io.github.romanvht.byedpi.utility.registerNotificationChannel
+import io.github.romanvht.byedpi.utility.setMapsMasquerade
+import io.github.romanvht.byedpi.utility.MapsMasqueradeGuard
 import kotlinx.coroutines.*
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.sync.Mutex
@@ -37,6 +42,7 @@ object ServiceManager {
         val stopped = CompletableDeferred<Unit>()
         var stopping = false
         var job: Job? = null
+        var guardJob: Job? = null
     }
 
     fun start(context: Context, mode: Mode) {
@@ -241,6 +247,7 @@ object ServiceManager {
                 if (!current.stopping) {
                     publish(current.mode, AppStatus.Running, STARTED_BROADCAST)
                     current.started.complete(true)
+                    launchMapsGuard(current)
                 }
                 current.engine.awaitExit()
             } catch (_: CancellationException) {
@@ -271,12 +278,44 @@ object ServiceManager {
 
     private fun finish(current: Session, failed: Boolean) {
         current.engine.onStopping = null
+        current.guardJob?.cancel()
+        current.guardJob = null
         if (session === current) {
             session = null
             publish(current.mode, AppStatus.Halted, if (failed) FAILED_BROADCAST else STOPPED_BROADCAST)
         }
         current.started.complete(false)
         current.stopped.complete(Unit)
+    }
+
+    /**
+     * Fail-safe: while the Google Maps masquerade is enabled, probe the real
+     * outbound path through the local byedpi SOCKS proxy. If it stays dead for
+     * several consecutive probes — the signature of a carrier hard block caused
+     * by the --maps fake packet — turn the masquerade off and restart so the
+     * connection recovers. The restart re-reads config with the pref now false,
+     * which disarms this guard, so it can never loop.
+     */
+    private fun launchMapsGuard(current: Session) {
+        val app = application ?: return
+        if (!app.getPreferences().getMapsMasquerade()) return
+        val (host, port) = app.getPreferences().getProxyIpAndPort()
+        val portNum = port.toIntOrNull() ?: return
+        current.guardJob = scope.launch {
+            MapsMasqueradeGuard.watch(
+                proxyHost = host,
+                proxyPort = portNum,
+                stillEligible = {
+                    session === current && !current.stopping &&
+                        app.getPreferences().getMapsMasquerade()
+                },
+                onTrip = {
+                    Log.e(TAG, "Maps masquerade caused a hard block; disabling it")
+                    app.getPreferences().setMapsMasquerade(false)
+                    restart(app, current.mode)
+                },
+            )
+        }
     }
 
     private fun publish(mode: Mode, status: AppStatus, action: String) {
